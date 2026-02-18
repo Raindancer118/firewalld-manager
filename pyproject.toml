@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "firewalld-manager"
+version = "0.1.0"
+description = "Interactive TUI for managing firewalld"
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.0",
+    "rich>=13.0",
+    "prompt_toolkit>=3.0",
+]
+
+[project.scripts]
+firewall-manager = "firewalld_manager.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["firewalld_manager*"]

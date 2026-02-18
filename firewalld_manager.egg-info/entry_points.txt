@@ -1,0 +1,2 @@
+[console_scripts]
+firewall-manager = firewalld_manager.cli:main

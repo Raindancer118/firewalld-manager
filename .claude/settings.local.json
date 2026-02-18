@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(firewall-cmd:*)",
+      "Bash(python3:*)"
+    ]
+  }
+}
