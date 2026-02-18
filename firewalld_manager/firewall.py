@@ -13,10 +13,35 @@ except ImportError:
     FirewallClient = None  # type: ignore[misc,assignment]
 
 
+_POLKIT_MSG = """\
+firewalld-manager requires elevated privileges (polkit denied access).
+
+Quick fix — run with sudo:
+  sudo firewall-manager
+
+Permanent fix — create a polkit rule so your user can run it without sudo:
+  sudo tee /etc/polkit-1/rules.d/49-firewalld-manager.rules <<'EOF'
+  polkit.addRule(function(action, subject) {
+      if (action.id.indexOf("org.fedoraproject.FirewallD1") === 0 &&
+          subject.isInGroup("sudo")) {
+          return polkit.Result.YES;
+      }
+  });
+  EOF
+  sudo systemctl restart polkit
+
+Then run firewall-manager normally (no sudo needed).\
+"""
+
+
+def _is_polkit_error(exc: Exception) -> bool:
+    s = str(exc)
+    return "NotAuthorized" in s or "polkit" in s.lower() or "NotAuthorizedException" in s
+
+
 def _check_firewalld_available() -> None:
     """Check that firewalld and python-firewall are available, with helpful errors."""
     if not _FIREWALL_CLIENT_AVAILABLE:
-        import shutil, sys
         lines = [
             "python-firewall is not installed.",
             "",
@@ -40,6 +65,15 @@ def _check_firewalld_available() -> None:
             "Start it with:  sudo systemctl start firewalld\n"
             "Enable it:      sudo systemctl enable firewalld"
         )
+
+    # Test polkit permissions — getServiceSettings reads permanent config and
+    # triggers the org.fedoraproject.FirewallD1.config.info polkit action.
+    try:
+        c = FirewallClient()
+        c.getServiceSettings("ssh")
+    except Exception as e:
+        if _is_polkit_error(e):
+            raise SystemExit(_POLKIT_MSG) from None
 
 
 PROTECTED_SERVICES = {"ssh", "https"}
@@ -78,7 +112,11 @@ class FirewallManager:
             self._client = FirewallClient()
             # Verify connection works
             self._client.getDefaultZone()
+        except SystemExit:
+            raise
         except Exception as e:
+            if _is_polkit_error(e):
+                raise SystemExit(_POLKIT_MSG) from None
             raise SystemExit(
                 f"Cannot connect to firewalld via D-Bus: {e}\n\n"
                 "Make sure firewalld is running and you have the right permissions.\n"
